@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Distribution - Test Case Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .is-locked { border-color: #ef4444; background-color: #fef2f2; }
+        .is-auto { border-color: #3b82f6; background-color: #eff6ff; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 md:p-10">
+
+    <div class="max-w-xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden border border-slate-200">
+        <div class="bg-slate-800 p-6 text-white">
+            <h1 class="text-xl font-bold">Smart Distribution Logic</h1>
+            <p class="text-slate-400 text-sm">Phase: Auto -> Manual -> Lock/Unlock</p>
+        </div>
+
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-8 pb-6 border-b">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-500">Total Leads Pool</label>
+                    <input type="number" id="targetLeads" value="1000" oninput="distribute()" 
+                           class="text-3xl font-black text-slate-800 w-32 focus:outline-none">
+                </div>
+                <div class="text-right">
+                    <label class="block text-xs font-bold uppercase text-slate-500">Current Sum</label>
+                    <div id="currentSum" class="text-3xl font-black text-blue-600">0</div>
+                </div>
+            </div>
+
+            <div id="warning" class="hidden mb-4 p-3 bg-amber-100 border border-amber-300 text-amber-800 text-sm rounded-lg flex items-center gap-2">
+                ⚠️ <span id="warningText"></span>
+            </div>
+
+            <div id="accountList" class="space-y-3">
+                </div>
+
+            <div class="mt-8 pt-6 border-t flex gap-3">
+                <button onclick="addAccount()" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
+                    + Add Account
+                </button>
+                <button onclick="resetAll()" class="px-4 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition">
+                    Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let accounts = [];
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+        function addAccount() {
+            if (accounts.length >= 26) return;
+            const name = alphabet[accounts.length];
+            accounts.push({ name, value: 0, locked: false });
+            distribute();
+        }
+
+        function handleManualInput(index, newValue) {
+            accounts[index].value = parseInt(newValue) || 0;
+            accounts[index].locked = true;
+            distribute();
+        }
+
+        function toggleLock(index) {
+            accounts[index].locked = !accounts[index].locked;
+            distribute();
+        }
+
+        function resetAll() {
+            accounts = [];
+            addAccount();
+        }
+
+        function distribute() {
+            const target = parseInt(document.getElementById('targetLeads').value) || 0;
+            const lockedAccounts = accounts.filter(a => a.locked);
+            const unlockedAccounts = accounts.filter(a => !a.locked);
+
+            const lockedSum = lockedAccounts.reduce((sum, a) => sum + a.value, 0);
+            const remaining = target - lockedSum;
+
+            // 1. Calculate Unlocked shares
+            if (unlockedAccounts.length > 0) {
+                const share = Math.max(0, Math.floor(remaining / unlockedAccounts.length));
+                let remainder = Math.max(0, remaining % unlockedAccounts.length);
+
+                unlockedAccounts.forEach(acc => {
+                    acc.value = share + (remainder > 0 ? 1 : 0);
+                    if (remainder > 0) remainder--;
+                });
+                document.getElementById('warning').classList.add('hidden');
+            } else {
+                // All locked - check if sum matches target
+                if (lockedSum !== target) {
+                    const diff = target - lockedSum;
+                    const msg = diff > 0 ? `Short by ${diff}. Unlock an account to absorb.` : `Over by ${Math.abs(diff)}.`;
+                    document.getElementById('warningText').innerText = msg;
+                    document.getElementById('warning').classList.remove('hidden');
+                } else {
+                    document.getElementById('warning').classList.add('hidden');
+                }
+            }
+
+            render(lockedSum + (unlockedAccounts.length > 0 ? remaining : 0), target);
+        }
+
+        function render(currentTotal, target) {
+            const list = document.getElementById('accountList');
+            const sumDisplay = document.getElementById('currentSum');
+            
+            sumDisplay.innerText = currentTotal;
+            sumDisplay.className = currentTotal === target ? "text-3xl font-black text-green-600" : "text-3xl font-black text-red-600";
+
+            list.innerHTML = accounts.map((acc, i) => `
+                <div class="flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${acc.locked ? 'is-locked shadow-sm' : 'is-auto'}">
+                    <div class="w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center font-bold text-slate-700">
+                        ${acc.name}
+                    </div>
+                    <div class="flex-1">
+                        <div class="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1">
+                            ${acc.locked ? 'Manual Amount' : 'Auto Distributed'}
+                        </div>
+                        <input type="number" 
+                               value="${acc.value}" 
+                               oninput="handleManualInput(${i}, this.value)"
+                               class="w-full bg-transparent text-xl font-bold focus:outline-none text-slate-800">
+                    </div>
+                    <button onclick="toggleLock(${i})" class="text-2xl hover:scale-110 transition">
+                        ${acc.locked ? '🔒' : '🔓'}
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Start with 1 account as per Phase 1
+        addAccount();
+    </script>
+</body>
+</html>
