@@ -3,44 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lead Distribution - Fixed Focus</title>
+    <title>Lead Distribution - Editable Pool</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .is-locked { border-color: #ef4444 !important; background-color: #fef2f2; }
         .is-auto { border-color: #3b82f6 !important; background-color: #eff6ff; }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .pool-focus:focus { border-bottom: 2px solid white; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-10">
 
     <div class="max-w-xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden border border-slate-200">
-        <div class="bg-slate-800 p-6 text-white flex justify-between items-center">
+        <div class="bg-slate-800 p-6 text-white flex justify-between items-end">
             <div>
                 <h1 class="text-xl font-bold">Smart Distribution</h1>
-                <p class="text-slate-400 text-xs">Cursor focus is now fixed</p>
+                <p class="text-slate-400 text-xs italic">Logic: Pool and Accounts are both live</p>
             </div>
             <div class="text-right">
-                <span class="text-xs font-bold block opacity-50 uppercase">Total Pool</span>
-                <input type="number" id="targetLeads" value="1000" oninput="distribute()" 
-                       class="bg-transparent text-2xl font-black text-white w-24 text-right focus:outline-none">
+                <label for="targetLeads" class="text-[10px] font-black uppercase tracking-widest opacity-60 block mb-1 text-blue-400">Edit Total Pool</label>
+                <input type="number" id="targetLeads" value="1000" 
+                       oninput="distribute()" 
+                       class="bg-transparent text-4xl font-black text-white w-32 text-right focus:outline-none border-b-2 border-slate-600 pool-focus transition-all">
             </div>
         </div>
 
         <div class="p-6">
-            <div id="warning" class="hidden mb-4 p-3 bg-amber-100 border border-amber-300 text-amber-800 text-sm rounded-lg flex items-center gap-2">
-                ⚠️ <span id="warningText"></span>
+            <div id="warning" class="hidden mb-4 p-3 bg-red-100 border border-red-300 text-red-800 text-sm rounded-lg flex items-center justify-between">
+                <span class="flex items-center gap-2">⚠️ <span id="warningText"></span></span>
+                <span class="font-bold">Check Manual Values</span>
             </div>
 
             <div id="accountList" class="space-y-3">
                 </div>
 
-            <div class="mt-8 pt-6 border-t flex gap-3">
-                <button onclick="addAccount()" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
-                    + Add Account
-                </button>
-                <div class="flex-1 bg-slate-100 p-3 rounded-xl text-center">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase block">Current Sum</span>
-                    <span id="currentSum" class="text-xl font-black text-slate-800">0</span>
+            <div class="mt-8 pt-6 border-t flex flex-col gap-4">
+                <div class="flex justify-between items-center px-2">
+                    <span class="text-sm font-bold text-slate-500 uppercase">Live Calculation Sum:</span>
+                    <span id="currentSum" class="text-2xl font-black text-slate-800">0</span>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button onclick="addAccount()" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition active:scale-95">
+                        + Add Email Account
+                    </button>
+                    <button onclick="location.reload()" class="px-4 bg-slate-100 text-slate-400 py-3 rounded-xl hover:bg-slate-200 transition">
+                        Reset
+                    </button>
                 </div>
             </div>
         </div>
@@ -52,10 +61,9 @@
 
         function addAccount() {
             const index = accounts.length;
-            const name = alphabet[index];
+            const name = alphabet[index % 26] + (index >= 26 ? Math.floor(index/26) : "");
             accounts.push({ name, value: 0, locked: false });
             
-            // Create the HTML element ONCE
             const list = document.getElementById('accountList');
             const row = document.createElement('div');
             row.id = `row-${index}`;
@@ -63,7 +71,7 @@
             row.innerHTML = `
                 <div class="w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center font-bold text-slate-700">${name}</div>
                 <div class="flex-1">
-                    <div id="label-${index}" class="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1">Auto Distributed</div>
+                    <div id="label-${index}" class="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1">Auto Distribution</div>
                     <input type="number" id="input-${index}" value="0" 
                            oninput="handleManualInput(${index}, this.value)"
                            class="w-full bg-transparent text-xl font-bold focus:outline-none text-slate-800">
@@ -78,7 +86,7 @@
             accounts[index].value = parseInt(newValue) || 0;
             accounts[index].locked = true;
             updateUIStates();
-            distribute(index); // Pass index to avoid overwriting the box we are typing in
+            distribute(index);
         }
 
         function toggleLock(index) {
@@ -95,11 +103,11 @@
                 
                 if (acc.locked) {
                     row.classList.replace('is-auto', 'is-locked');
-                    label.innerText = "Manual Amount";
+                    label.innerText = "Locked (Manual)";
                     btn.innerText = "🔒";
                 } else {
                     row.classList.replace('is-locked', 'is-auto');
-                    label.innerText = "Auto Distributed";
+                    label.innerText = "Auto Distribution";
                     btn.innerText = "🔓";
                 }
             });
@@ -114,6 +122,7 @@
             const remaining = target - lockedSum;
 
             if (unlockedAccs.length > 0) {
+                // If there are unlocked accounts, they absorb the difference
                 const share = Math.max(0, Math.floor(remaining / unlockedAccs.length));
                 let remainder = Math.max(0, remaining % unlockedAccs.length);
 
@@ -122,34 +131,43 @@
                     acc.value = share + (remainder > 0 ? 1 : 0);
                     if (remainder > 0) remainder--;
                     
-                    // Update the input value ONLY if it's not the one we are typing in
                     if (idx !== skipIndex) {
                         document.getElementById(`input-${idx}`).value = acc.value;
                     }
                 });
                 document.getElementById('warning').classList.add('hidden');
             } else {
+                // All accounts are locked, we just check if it matches the target
                 checkWarning(lockedSum, target);
             }
 
+            // Always update the live sum display
             const currentTotal = lockedSum + (unlockedAccs.length > 0 ? Math.max(0, remaining) : 0);
             const sumDisplay = document.getElementById('currentSum');
-            sumDisplay.innerText = currentTotal;
-            sumDisplay.className = currentTotal === target ? "text-xl font-black text-green-600" : "text-xl font-black text-red-600";
+            sumDisplay.innerText = currentTotal.toLocaleString();
+            
+            if (currentTotal === target) {
+                sumDisplay.className = "text-2xl font-black text-green-600";
+            } else {
+                sumDisplay.className = "text-2xl font-black text-red-600";
+            }
         }
 
         function checkWarning(sum, target) {
             const warning = document.getElementById('warning');
             if (sum !== target) {
                 const diff = target - sum;
-                document.getElementById('warningText').innerText = diff > 0 ? `Short by ${diff}. Unlock an account.` : `Over by ${Math.abs(diff)}.`;
+                document.getElementById('warningText').innerText = diff > 0 
+                    ? `Pool needs ${diff} more leads.` 
+                    : `Locked leads exceed pool by ${Math.abs(diff)}.`;
                 warning.classList.remove('hidden');
             } else {
                 warning.classList.add('hidden');
             }
         }
 
-        addAccount(); // Initialize
+        // Add first account on load
+        addAccount();
     </script>
 </body>
 </html>
