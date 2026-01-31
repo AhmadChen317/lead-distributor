@@ -3,34 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lead Distribution - Test Case Prototype</title>
+    <title>Lead Distribution - Fixed Focus</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .is-locked { border-color: #ef4444; background-color: #fef2f2; }
-        .is-auto { border-color: #3b82f6; background-color: #eff6ff; }
+        .is-locked { border-color: #ef4444 !important; background-color: #fef2f2; }
+        .is-auto { border-color: #3b82f6 !important; background-color: #eff6ff; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-10">
 
     <div class="max-w-xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden border border-slate-200">
-        <div class="bg-slate-800 p-6 text-white">
-            <h1 class="text-xl font-bold">Smart Distribution Logic</h1>
-            <p class="text-slate-400 text-sm">Phase: Auto -> Manual -> Lock/Unlock</p>
+        <div class="bg-slate-800 p-6 text-white flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold">Smart Distribution</h1>
+                <p class="text-slate-400 text-xs">Cursor focus is now fixed</p>
+            </div>
+            <div class="text-right">
+                <span class="text-xs font-bold block opacity-50 uppercase">Total Pool</span>
+                <input type="number" id="targetLeads" value="1000" oninput="distribute()" 
+                       class="bg-transparent text-2xl font-black text-white w-24 text-right focus:outline-none">
+            </div>
         </div>
 
         <div class="p-6">
-            <div class="flex justify-between items-center mb-8 pb-6 border-b">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-slate-500">Total Leads Pool</label>
-                    <input type="number" id="targetLeads" value="1000" oninput="distribute()" 
-                           class="text-3xl font-black text-slate-800 w-32 focus:outline-none">
-                </div>
-                <div class="text-right">
-                    <label class="block text-xs font-bold uppercase text-slate-500">Current Sum</label>
-                    <div id="currentSum" class="text-3xl font-black text-blue-600">0</div>
-                </div>
-            </div>
-
             <div id="warning" class="hidden mb-4 p-3 bg-amber-100 border border-amber-300 text-amber-800 text-sm rounded-lg flex items-center gap-2">
                 ⚠️ <span id="warningText"></span>
             </div>
@@ -42,9 +38,10 @@
                 <button onclick="addAccount()" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
                     + Add Account
                 </button>
-                <button onclick="resetAll()" class="px-4 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition">
-                    Reset
-                </button>
+                <div class="flex-1 bg-slate-100 p-3 rounded-xl text-center">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase block">Current Sum</span>
+                    <span id="currentSum" class="text-xl font-black text-slate-800">0</span>
+                </div>
             </div>
         </div>
     </div>
@@ -54,91 +51,105 @@
         const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
         function addAccount() {
-            if (accounts.length >= 26) return;
-            const name = alphabet[accounts.length];
+            const index = accounts.length;
+            const name = alphabet[index];
             accounts.push({ name, value: 0, locked: false });
+            
+            // Create the HTML element ONCE
+            const list = document.getElementById('accountList');
+            const row = document.createElement('div');
+            row.id = `row-${index}`;
+            row.className = `flex items-center gap-4 p-4 rounded-xl border-2 transition-all is-auto`;
+            row.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center font-bold text-slate-700">${name}</div>
+                <div class="flex-1">
+                    <div id="label-${index}" class="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1">Auto Distributed</div>
+                    <input type="number" id="input-${index}" value="0" 
+                           oninput="handleManualInput(${index}, this.value)"
+                           class="w-full bg-transparent text-xl font-bold focus:outline-none text-slate-800">
+                </div>
+                <button onclick="toggleLock(${index})" id="lock-btn-${index}" class="text-2xl hover:scale-110 transition">🔓</button>
+            `;
+            list.appendChild(row);
             distribute();
         }
 
         function handleManualInput(index, newValue) {
             accounts[index].value = parseInt(newValue) || 0;
             accounts[index].locked = true;
-            distribute();
+            updateUIStates();
+            distribute(index); // Pass index to avoid overwriting the box we are typing in
         }
 
         function toggleLock(index) {
             accounts[index].locked = !accounts[index].locked;
+            updateUIStates();
             distribute();
         }
 
-        function resetAll() {
-            accounts = [];
-            addAccount();
+        function updateUIStates() {
+            accounts.forEach((acc, i) => {
+                const row = document.getElementById(`row-${i}`);
+                const label = document.getElementById(`label-${i}`);
+                const btn = document.getElementById(`lock-btn-${i}`);
+                
+                if (acc.locked) {
+                    row.classList.replace('is-auto', 'is-locked');
+                    label.innerText = "Manual Amount";
+                    btn.innerText = "🔒";
+                } else {
+                    row.classList.replace('is-locked', 'is-auto');
+                    label.innerText = "Auto Distributed";
+                    btn.innerText = "🔓";
+                }
+            });
         }
 
-        function distribute() {
+        function distribute(skipIndex = -1) {
             const target = parseInt(document.getElementById('targetLeads').value) || 0;
-            const lockedAccounts = accounts.filter(a => a.locked);
-            const unlockedAccounts = accounts.filter(a => !a.locked);
+            const lockedAccs = accounts.filter(a => a.locked);
+            const unlockedAccs = accounts.filter(a => !a.locked);
 
-            const lockedSum = lockedAccounts.reduce((sum, a) => sum + a.value, 0);
+            const lockedSum = lockedAccs.reduce((sum, a) => sum + a.value, 0);
             const remaining = target - lockedSum;
 
-            // 1. Calculate Unlocked shares
-            if (unlockedAccounts.length > 0) {
-                const share = Math.max(0, Math.floor(remaining / unlockedAccounts.length));
-                let remainder = Math.max(0, remaining % unlockedAccounts.length);
+            if (unlockedAccs.length > 0) {
+                const share = Math.max(0, Math.floor(remaining / unlockedAccs.length));
+                let remainder = Math.max(0, remaining % unlockedAccs.length);
 
-                unlockedAccounts.forEach(acc => {
+                unlockedAccs.forEach(acc => {
+                    const idx = accounts.indexOf(acc);
                     acc.value = share + (remainder > 0 ? 1 : 0);
                     if (remainder > 0) remainder--;
+                    
+                    // Update the input value ONLY if it's not the one we are typing in
+                    if (idx !== skipIndex) {
+                        document.getElementById(`input-${idx}`).value = acc.value;
+                    }
                 });
                 document.getElementById('warning').classList.add('hidden');
             } else {
-                // All locked - check if sum matches target
-                if (lockedSum !== target) {
-                    const diff = target - lockedSum;
-                    const msg = diff > 0 ? `Short by ${diff}. Unlock an account to absorb.` : `Over by ${Math.abs(diff)}.`;
-                    document.getElementById('warningText').innerText = msg;
-                    document.getElementById('warning').classList.remove('hidden');
-                } else {
-                    document.getElementById('warning').classList.add('hidden');
-                }
+                checkWarning(lockedSum, target);
             }
 
-            render(lockedSum + (unlockedAccounts.length > 0 ? remaining : 0), target);
-        }
-
-        function render(currentTotal, target) {
-            const list = document.getElementById('accountList');
+            const currentTotal = lockedSum + (unlockedAccs.length > 0 ? Math.max(0, remaining) : 0);
             const sumDisplay = document.getElementById('currentSum');
-            
             sumDisplay.innerText = currentTotal;
-            sumDisplay.className = currentTotal === target ? "text-3xl font-black text-green-600" : "text-3xl font-black text-red-600";
-
-            list.innerHTML = accounts.map((acc, i) => `
-                <div class="flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${acc.locked ? 'is-locked shadow-sm' : 'is-auto'}">
-                    <div class="w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center font-bold text-slate-700">
-                        ${acc.name}
-                    </div>
-                    <div class="flex-1">
-                        <div class="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1">
-                            ${acc.locked ? 'Manual Amount' : 'Auto Distributed'}
-                        </div>
-                        <input type="number" 
-                               value="${acc.value}" 
-                               oninput="handleManualInput(${i}, this.value)"
-                               class="w-full bg-transparent text-xl font-bold focus:outline-none text-slate-800">
-                    </div>
-                    <button onclick="toggleLock(${i})" class="text-2xl hover:scale-110 transition">
-                        ${acc.locked ? '🔒' : '🔓'}
-                    </button>
-                </div>
-            `).join('');
+            sumDisplay.className = currentTotal === target ? "text-xl font-black text-green-600" : "text-xl font-black text-red-600";
         }
 
-        // Start with 1 account as per Phase 1
-        addAccount();
+        function checkWarning(sum, target) {
+            const warning = document.getElementById('warning');
+            if (sum !== target) {
+                const diff = target - sum;
+                document.getElementById('warningText').innerText = diff > 0 ? `Short by ${diff}. Unlock an account.` : `Over by ${Math.abs(diff)}.`;
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+        }
+
+        addAccount(); // Initialize
     </script>
 </body>
 </html>
